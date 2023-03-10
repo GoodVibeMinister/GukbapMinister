@@ -364,23 +364,20 @@ extension UserViewModel: ASAuthorizationControllerDelegate {
             rawNonce: nonce)
 
         //Firebase 작업
-        Auth.auth().signIn(with: credential) { (authResult, error) in
-            if let error {
-                print(#function, error.localizedDescription)
-                return
+//        Auth.auth().signIn(with: credential) { (authResult, error) in
+//            if let error {
+//                print(#function, error.localizedDescription)
+//                return
+//            }
+            
+            Auth.auth().signIn(with: credential) { result, error in
+                // 사용자 uid
+                guard let uid = Auth.auth().currentUser?.uid else { return }
+                guard let user = result?.user else { return }
+                // 로그인 성공시 유저정보 FireStore에 저장
+                self.insertUserInFireStore(uid: uid, userEmail: user.providerData.first?.email ?? "", userName: user.providerData.first?.displayName ?? "")
+                self.fetchUserInfo(uid: uid)
             }
-            
-            var fullName: String?
-            if let familyName = appleIDCredential.fullName?.familyName, let givenName = appleIDCredential.fullName?.givenName{
-                fullName = familyName + givenName
-            }
-            
-            guard let user = authResult?.user else { return }
-            
-            
-            // 로그인 성공시 유저정보 FireStore에 저장
-            self.insertUserInFireStore(uid: user.uid, userEmail: user.providerData.first?.email ?? "", userName: fullName ?? "임시닉네임")
-            self.fetchUserInfo(uid: user.uid)
             self.loginState = .appleLogin
             
             // UserDefaults에 키-값 쌍 저장
@@ -389,7 +386,7 @@ extension UserViewModel: ASAuthorizationControllerDelegate {
         }
       }
     }
-}
+
 
 extension UserViewModel:
     ASAuthorizationControllerPresentationContextProviding {
