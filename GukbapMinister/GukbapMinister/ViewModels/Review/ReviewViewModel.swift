@@ -308,8 +308,6 @@ class ReviewViewModel: ObservableObject {
                     self.reviewImageURLs[imageName] = imageUrl
                 }
             }
-            
-        
     }
 
 
