@@ -11,16 +11,24 @@ import Kingfisher
 struct StoreModalView: View {
     // 다크 모드 지원
     @Environment(\.colorScheme) var scheme
+    @StateObject private var reviewViewModel: ReviewViewModel = ReviewViewModel()
+
     var store: Store?
-    
+    var checkAllReviewCount : [Review] {
+        reviewViewModel.reviews.filter{
+            $0.storeName == store?.storeName
+        }
+    }
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                storeTitle
+            VStack(alignment: .leading) {
+                HStack{
+                    storeTitle
+
+                }
                 divider
-                    .padding(.top, 10)
-                
-                HStack(alignment: .top) {
+                    
+                HStack {
                     if let store {
                         NavigationLink {
                             DetailView(detailViewModel: DetailViewModel(store: store))
@@ -37,33 +45,48 @@ struct StoreModalView: View {
                                 Label("이 주소 복사하기", systemImage: "doc.on.clipboard")
                             }
                             Text(store?.storeAddress ?? "")
+                                .lineLimit(1)
+                                .font(.subheadline)
+
                         } label: {
                             HStack {
                                 Text(store?.storeAddress ?? "")
                                     // 다크 모드 지원
-                                    .foregroundColor(scheme == .dark ? .white : .accentColor)
-                                    .padding(.leading, 5)
+                                    .foregroundColor(scheme == .dark ? .white : .secondary)
                                     .lineLimit(1)
                                     .fixedSize(horizontal: false, vertical: true)
-                                Image(systemName: "ellipsis.circle")
+                                Image(systemName: "doc.on.doc")
                                 
                                 Spacer()
                             }
                             .font(.subheadline)
                         }
-                        .frame(height: 20)
-                        .padding(.top, 10)
-                        Spacer()
-                        GgakdugiRatingShort(rate: store?.countingStar ?? 0.0, size: 20)
-                            .padding(.leading, 5)
-                            .padding(.bottom, 10)
+                        .frame(height:Screen.maxHeight * 0.02)
+                        
+                        HStack{
+                            Text("방문자리뷰")
+                                .foregroundColor(scheme == .dark ? .white : .secondary)
+                            Text("\(checkAllReviewCount.count)")
+                                .foregroundColor(Color("AccentColor"))
+                            Spacer()
+
+                        }
+                        .font(.subheadline)
+
+                        HStack{
+                            GgakdugiRatingShort(rate: store?.countingStar ?? 0.0, size: 20)
+                            Text("/ 5")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                                .padding(.leading,-5)
+                        }
                     }
+
                 }
-                .frame(height: 90)
-                .padding(.top, 10)
+                .frame(height: Screen.maxHeight * 0.0985)
+                .padding(.leading)
             }
         }
-        .padding(.horizontal, 15)
         .frame(width: Screen.searchBarWidth, height: 160)
         .background(RoundedRectangle(cornerRadius: 10).fill(scheme == .dark ? .black : Color.white))
         .overlay {
@@ -72,6 +95,7 @@ struct StoreModalView: View {
         }
         .onAppear {
             print("모달이 나오겠습니다")
+            reviewViewModel.fetchAllReviews()
         }
     }
     
@@ -79,21 +103,28 @@ struct StoreModalView: View {
 
 extension StoreModalView {
     var storeTitle: some View {
-        HStack {
+        
             NavigationLink(destination: DetailView(detailViewModel: DetailViewModel(store: store ?? .test))) {
                 Text(store?.storeName ?? "")
                     .foregroundColor(scheme == .dark ? .white : .accentColor)                
                     .font(.title3)
-                    .bold()
+                    .fontWeight(.medium)
             }
-            Spacer()
-        }
+           
+        
+        .padding(.leading)
     }
     
     var divider: some View {
         Divider()
             .frame(width: Screen.searchBarWidth, height: 1)
             .overlay(Color.mainColor.opacity(0.5))
+    }
+    
+    var reviewCount: some View {
+        HStack{
+            
+        }
     }
 }
 
