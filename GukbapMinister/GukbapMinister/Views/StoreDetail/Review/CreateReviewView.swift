@@ -26,7 +26,7 @@ struct CreateReviewView: View {
     @State private var selectedImagesDetail: Bool = false
     
     @Binding var showingSheet: Bool
-    
+    @State var value : CGFloat = 0
     
     var store : Store
     
@@ -51,11 +51,7 @@ struct CreateReviewView: View {
             ScrollView{
                 VStack{
                     VStack{
-                        HStack{
-                            Spacer()
-                            Text("")
-                            Spacer()
-                        }
+                       
                         HStack(spacing: 15) {
                             Spacer()
                             GgakdugiRatingWide(selected: selectedStar, size: 40, spacing: 15) { star in
@@ -207,7 +203,6 @@ struct CreateReviewView: View {
                         Section {
                             TextField("작성된 리뷰는 우리 모두가 확인할 수 있어요. 국밥 같은 따뜻한 마음을 나눠주세요.", text: $reviewText, axis: .vertical)
                                 .keyboardType(.default)
-//                                .foregroundColor(scheme == .light ? .black : .white)
                                 .frame(width: 300, height: 250, alignment: .center)
                                 .padding(EdgeInsets(top: 10, leading: 20, bottom: 20, trailing: 20))
                                 .background(RoundedRectangle(cornerRadius: 5.0).stroke(scheme ==  .light ? Color.mainColor : Color.white, lineWidth: 1.5))
@@ -274,11 +269,27 @@ struct CreateReviewView: View {
                             }//if
                         }//toolbar
                     }//VStack
-                    
+                   
                     Spacer()
                     
                 }//FirstVStack
                 
+                .offset(y: -self.value)
+                .animation(.spring(),value: value)
+                .onAppear{
+                    NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillShowNotification,object:nil,queue:.main){
+                        (noti) in
+                        let value = noti.userInfo![UIResponder.keyboardFrameEndUserInfoKey] as! CGRect
+                        let height = value.height
+                        self.value = height - 75
+                        
+                        NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillHideNotification,object:nil,queue:.main){
+                            (noti) in
+                            
+                            self.value = 0
+                        }
+                    }
+                }
                 
                 .popup(isPresented: $isReviewAdded) {
                     HStack {
@@ -301,7 +312,11 @@ struct CreateReviewView: View {
                         .type(.floater(verticalPadding: 0, useSafeAreaInset: true))
                         .position(.top)
                 } // popup
-            }//NavigationStack
+            }//ScrollView
+            .padding(.top, getSafeAreaTop())
+            .offset(y:-50)
+
+         
 
             .background(scheme == .light ? .white : .black) // 화면 밖 터치할 때 백그라운드 지정을 안 해주면 View에 올라간 요소들 클릭 시에만 적용됨.
             .onTapGesture() { // 키보드 밖 화면 터치 시 키보드 사라짐
@@ -322,9 +337,18 @@ struct CreateReviewView: View {
             
         }
         .animation(.easeInOut, value:selectedImageData)
-        
+       
     }//body
-    
+    func getSafeAreaTop() -> CGFloat {
+        let keyWindow = UIApplication.shared.connectedScenes
+            .filter({$0.activationState == .foregroundActive})
+            .map({$0 as? UIWindowScene})
+            .compactMap({$0})
+            .first?.windows
+            .filter({$0.isKeyWindow}).first
+        return (keyWindow?.safeAreaInsets.top)!
+    }
+
 }//struct CreateReviewView
 
 
@@ -334,9 +358,6 @@ extension View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
-
-
-
 
 
 
