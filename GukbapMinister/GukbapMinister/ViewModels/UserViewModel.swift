@@ -78,98 +78,134 @@ class UserViewModel: NSObject, ObservableObject {
     }
     
     // MARK: - FireStore에 유저 정보 추가하는 함수
-    // googleLogin() 함수 내부에서 실행 됨.
-    func insertUserInFireStore(uid: String, userEmail: String, userName: String) {
-        Task{
-            do{
-                try await database.collection("User").document(uid).setData([
-                    "userEmail" : userEmail,
-                    "userNickname" : userName,
-                    "reviewCount" : 0,
-                    "storeReportCount" : 0,
-                    "favoriteStoreId" : [],
-                    "userGrade" : "깍두기"
-                ])
-            }catch let error {
-                print("\(#function) 파이어베이스 에러 : \(error)")
+    func insertUserInFirestore(userEmail: String, userName: String) {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        
+        Task {
+            do {
+                let document = try await database.collection("User").document(uid).getDocument()
+                
+                if document.exists {
+                    try database.collection("User").document(uid).setData(from: document.data(as: User.self))
+                } else {
+                    try await database.collection("User").document(uid).setData([
+                        "userEmail" : userEmail,
+                        "userNickname" : userName,
+                        "reviewCount" : 0,
+                        "storeReportCount" : 0,
+                        "favoriteStoreId" : [],
+                        "userGrade" : "깍두기"
+                    ])
+                }
+                
+                self.fetchUserInfo(uid: uid)
+            } catch {
+                print("\(#function) 파이어베이스 에러 : \(error.localizedDescription)")
             }
         }//Task
     }
     
     // MARK: - 구글
     // 구글 로그인
-    func googleLogin() {
+    @MainActor
+    func googleLogin() async {
         
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
         guard let rootViewController = windowScene.windows.first?.rootViewController else { return }
         
         // 구글 로그인 로직 실행
-        GIDSignIn.sharedInstance.signIn(
-            withPresenting: rootViewController) { signInResult, error in
-                guard let signInResult = signInResult else { return }
-                
-                let user = signInResult.user // 로그인 한 유저
-                let idToken = user.idToken?.tokenString // 유저 idToken
-                let accessToken = user.accessToken.tokenString // 유저 accessToken
-                
-                // credential 생성
-                let credential = GoogleAuthProvider.credential(withIDToken: idToken ?? "", accessToken: accessToken)
-                
-                // 위 cresential을 이용해서 FirebaseAuth 로그인
-                Auth.auth().signIn(with: credential) { result, error in
-                    // 사용자 uid
-                    guard let uid = Auth.auth().currentUser?.uid else { return }
-                    guard let user = result?.user else { return }
-                    // 로그인 성공시 유저정보 FireStore에 저장
-                    self.insertUserInFireStore(uid: uid, userEmail: user.providerData.first?.email ?? "", userName: user.providerData.first?.displayName ?? "")
-                    self.fetchUserInfo(uid: uid)
-                    //                    print("로그인 후 : currentUser - \(self.currentUser)")
-                }
-                // 구글로그인 상태로 전환
-                self.loginState = .googleLogin
-                UserDefaults.standard.set(true, forKey: "isLoggedIn")
-                UserDefaults.standard.set("googleLogin", forKey: "loginPlatform")
-                print("asdfasdf \(self.isLoggedIn)")
+        do {
+            let googleUserInfo = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController).user
+            
+            guard
+                let idToken = googleUserInfo.idToken?.tokenString else {
+                print(#function, "there is no token")
+                return
             }
-        
+            let accessToken = googleUserInfo.accessToken.tokenString
+            let credential = GoogleAuthProvider.credential(withIDToken: idToken, accessToken: accessToken)
+            
+            let user = try await Auth.auth().signIn(with: credential).user
+                 
+            self.insertUserInFirestore(userEmail: user.providerData.first?.email ?? "", userName: user.providerData.first?.displayName ?? "")
+            
+            setUserDefaults(.googleLogin)
+            
+        } catch {
+            print(error.localizedDescription)
+        }
     }
     
     // MARK: - 카카오
     // 카카오 로그인
     func kakaoLogin() {
         // 카카오톡 간편로그인이 실행 가능한지 확인
+        func loginProcess(_ oauthToken: OAuthToken?, _ error: Error?) {
+            if let error = error {
+                print("There is some error in Kakao Service: \(error.localizedDescription)")
+            } else {
+                doKakaoAuthFirebaseProcess { [self] error in
+                    if let error {
+                        print("Cannot do KakaoAuthFirebaseProcess: \(error.localizedDescription)")
+                    } else {
+                        setUserDefaults(.kakaoLogin)
+                    }
+                }
+            }
+        }
+        
         if UserApi.isKakaoTalkLoginAvailable() {
             // 간편로그인 실행 가능할 경우
-            UserApi.shared.loginWithKakaoTalk { oauthToken, error in
-                if let error = error {
-                    print(error)
-                } else {
-                    // 로그인 성공시
-                    // 카카오 로그인으로 전환
-                    self.loginState = .kakaoLogin
-                    UserDefaults.standard.set(true, forKey: "isLoggedIn")
-                    UserDefaults.standard.set("kakaoLogin", forKey: "loginPlatform")
-                    // firebase에 저장
-                    self.loginFirebase()
-                }
+            UserApi.shared.loginWithKakaoTalk { (oauthToken, error) in
+               loginProcess(oauthToken, error)
             }
         } else { // 간편로그인이 실행 불가능할 경우
             // 로그인 웹페이지를 띄우고 쿠키기반 로그인 진행
-            UserApi.shared.loginWithKakaoAccount { [self](oauthToken, error) in
-                if let error = error {
-                    print(error)
-                }
-                else {
-                    if let token = oauthToken {
-                        print("kakao token: \(token)")
+            UserApi.shared.loginWithKakaoAccount { (oauthToken, error) in
+                loginProcess(oauthToken, error)
+            }
+        }
+    }
+    
+    private func doKakaoAuthFirebaseProcess(completion: @escaping (Error?) -> Void) {
+        getKakaoUserInfo { [self] (id, account, error) in
+            
+            if let error {
+                completion(error)
+                return
+            }
+            
+            if let id, let account, let email = account.email {
+                self.database.collection("User").whereField("userEmail", isEqualTo: email).getDocuments { result, error in
+                    if let error {
+                        completion(error)
+                        return
                     }
-                    // 로그인 성공시
-                    // 카카오 로그인으로 전환
-                    self.loginState = .kakaoLogin
-                    UserDefaults.standard.set(true, forKey: "isLoggedIn")
-                    UserDefaults.standard.set("kakaoLogin", forKey: "loginPlatform")
-                    // firebase에 저장
-                    self.loginFirebase()
+                    
+                    if let result {
+                        if result.isEmpty {
+                            print("카카오계정으로 새로생성중")
+                            Auth.auth().createUser(withEmail: email, password: String(id)) { _, error in
+                                if let error {
+                                    completion(error)
+                                } else {
+                                    completion(nil)
+                                    self.insertUserInFirestore(userEmail: email, userName: account.profile?.nickname ?? "임시닉네임")
+                                }
+                            }
+                        } else {
+                            print("카카오계정으로 다시로그인중")
+                            Auth.auth().signIn(withEmail: email, password: String(id)) { _, error in
+                                if let error {
+                                    completion(error)
+                                    return
+                                } else {
+                                    completion(nil)
+                                }
+                            }
+                        }
+                    }
+                    
                 }
             }
         }
@@ -177,74 +213,59 @@ class UserViewModel: NSObject, ObservableObject {
     
     // Firebas Auth, Store 저장
     // kakaoLogin() 함수 내에서 사용
-    private func loginFirebase() {
+    private func getKakaoUserInfo(completion: @escaping (Int64?, Account?, Error?) -> Void) {
         // 사용자 정보 가져오기
-        UserApi.shared.me { kuser, error in
-            if let error = error {
-                print(error)
-            } else {
-                // 사용자 정보로 FirebaseAuth 계정 생성 진행
-                Auth.auth().createUser(withEmail: (kuser?.kakaoAccount?.email ?? ""), password: "\(String(describing: kuser?.id))") { fuser, error in
-                    if let error = error {
-                        print("\(error) : \(#function)")
-                        // 계정 생성이 실패한경우 계정이 있다고 가정하고 로그인 진행
-                        Auth.auth().signIn(withEmail: (kuser?.kakaoAccount?.email ?? ""), password: "\(String(describing: kuser?.id))", completion: { userResult, error in
-                            print("asdfasdfsdf : \(String(describing: userResult?.user.uid))")
-                            self.fetchUserInfo(uid: userResult?.user.uid ?? "")
-                        })
-                    } else {
-                        guard let uid = Auth.auth().currentUser?.uid else { return }// 사용자 uid
-                        print("else uid : \(uid)")
-                        guard let kuser = kuser else { return } // 사용자 옵셔널 바인딩
-                        let email = kuser.kakaoAccount?.email // 사용자 이메일
-                        let name = kuser.kakaoAccount?.profile?.nickname // 사용자 닉네임
-                        // 로그인 성공시 FireStore User 컬렉션에 저장
-                        self.insertUserInFireStore(uid: uid , userEmail: email!, userName: name!)
-                        self.fetchUserInfo(uid: uid)
-                    }
-                }
+        UserApi.shared.me { (kuser, error) in
+            if let error {
+                completion(nil, nil, error)
+                return
             }
+            
+            guard let kuser,
+                  let kakaoAccount = kuser.kakaoAccount,
+                  let kakaoUid = kuser.id
+            else {
+                completion(nil, nil, nil)
+                return
+            }
+            
+            completion(kakaoUid, kakaoAccount, nil)
         }
+    }
+    
+   
+                
+    
+    
+    //MARK: - UserDefaults 값 저장
+    private func setUserDefaults(_ loginState: LoginState) {
+        self.loginState = loginState
+        
+        if loginState == .logout {
+            UserDefaults.standard.set(false, forKey: "isLoggedIn")
+        } else {
+            UserDefaults.standard.set(true, forKey: "isLoggedIn")
+        }
+        
+        UserDefaults.standard.set(loginState.rawValue, forKey: "loginPlatform")
     }
     
     // MARK: - 로그아웃(공통)
     // 로그인 상태 열거형 변수를 참조하여 해당하는 플랫폼 로그아웃 로직 실행
     func logoutByPlatform() {
         
-        print("현재 로그인 플랫폼 - \(String(describing: self.loginState))")
-        
         switch loginPlatform {
-        case "googleLogin": // 구글로그인일때
+        case "googleLogin", "appleLogin": // 구글, 애플 로그인일때
             do {
-                UserDefaults.standard.set(false, forKey: "isLoggedIn")
-                UserDefaults.standard.set("logout", forKey: "loginPlatform")
                 try Auth.auth().signOut()
-                self.loginState = .logout // 로그아웃 상태로 전환
-                print("\(#function) - 구글 로그아웃 성공")
-                print("\(self.isLoggedIn)")
                 
-                //                print("로그아웃 후 : currentUser - \(String(describing: self.currentUser))")
-            } catch let signOutError as NSError {
-                print("Error signing out: %@", signOutError)
+                self.setUserDefaults(.logout)
+                
+            } catch {
+                print("Error signing out: %@", error.localizedDescription)
             }
-            //            GIDSignIn.sharedInstance.signOut() // 구글 로그아웃
-            //            do {
-            //                UserDefaults.standard.set(false, forKey: "isLoggedIn")
-            //                UserDefaults.standard.set("noLoginPlatform", forKey: "loginPlatform")
-            //                try Auth.auth().signOut() // FirebaseAuth 로그아웃
-            //                self.loginState = .logout // 로그아웃 상태로 전환
-            //                print("\(#function) - 구글 로그아웃 성공")
-            //                print("\(self.isLoggedIn)")
-            //            } catch {
-            //                print("\(error.localizedDescription)")
-            //            }
             
-        case "kakaoLogin": // 카카오로그인일때
-            //            UserApi.shared.unlink { error in
-            //                if let error = error {
-            //                    print(error.localizedDescription)
-            //                }
-            //            }
+        case "kakaoLogin":
             UserApi.shared.logout {(error) in
                 if let error = error {
                     print(error)
@@ -252,29 +273,14 @@ class UserViewModel: NSObject, ObservableObject {
                 else {
                     do {
                         try Auth.auth().signOut()
-                        UserDefaults.standard.set(false, forKey: "isLoggedIn")
-                        UserDefaults.standard.set("noLoginPlatform", forKey: "loginPlatform")
-                        self.loginState = .logout // 로그아웃 상태로 전환
-                        print("\(#function) - 카카오 로그아웃 성공")
+                       
+                        self.setUserDefaults(.logout)
+                        
                     } catch {
-                        print(error.localizedDescription)
+                        print("Error signing out: %@", error.localizedDescription)
                     }
                 }
             }
-             case "appleLogin": // 애플로그인일때
-            do {
-                UserDefaults.standard.set(false, forKey: "isLoggedIn")
-                UserDefaults.standard.set("noLoginPlatform", forKey: "loginPlatform")
-                try Auth.auth().signOut()
-                self.loginState = .logout // 로그아웃 상태로 전환
-                print("\(#function) - 애플 로그아웃 성공")
-                print("\(self.isLoggedIn)")
-                
-                //                print("로그아웃 후 : currentUser - \(String(describing: self.currentUser))")
-            } catch let signOutError as NSError {
-                print("Error signing out: %@", signOutError)
-            }
-            
             default: return
         }
     }
@@ -290,7 +296,6 @@ extension UserViewModel {
         request.nonce = sha256(nonce)
         
         let authorizationController = ASAuthorizationController(authorizationRequests: [request])
-        
         authorizationController.delegate = self
         authorizationController.presentationContextProvider = self
         authorizationController.performRequests()
@@ -362,27 +367,23 @@ extension UserViewModel: ASAuthorizationControllerDelegate {
         let credential = OAuthProvider.credential(withProviderID: "apple.com",
             idToken: idTokenString,
             rawNonce: nonce)
+          
+          
 
-        //Firebase 작업
-//        Auth.auth().signIn(with: credential) { (authResult, error) in
-//            if let error {
-//                print(#function, error.localizedDescription)
-//                return
-//            }
-            
-            Auth.auth().signIn(with: credential) { result, error in
-                // 사용자 uid
-                guard let uid = Auth.auth().currentUser?.uid else { return }
-                guard let user = result?.user else { return }
-                // 로그인 성공시 유저정보 FireStore에 저장
-                self.insertUserInFireStore(uid: uid, userEmail: user.providerData.first?.email ?? "", userName: user.providerData.first?.displayName ?? "")
-                self.fetchUserInfo(uid: uid)
+            Auth.auth().signIn(with: credential) { authResult, error in
+                let email: String = authResult?.user.email ?? appleIDCredential.email ?? "\(self.randomNonceString(length: 8))@temporary.com"
+                
+                let familyName: String = appleIDCredential.fullName?.familyName ?? ""
+                let givenName: String = appleIDCredential.fullName?.givenName ?? ""
+                let userName: String = familyName + givenName
+                
+                self.insertUserInFirestore(userEmail: email, userName: userName.isEmpty ? "임시닉네임" : userName)
+                
+                
             }
-            self.loginState = .appleLogin
+          
+          setUserDefaults(.appleLogin)
             
-            // UserDefaults에 키-값 쌍 저장
-            UserDefaults.standard.set(true, forKey: "isLoggedIn")
-            UserDefaults.standard.set("appleLogin", forKey: "loginPlatform")
         }
       }
     }
