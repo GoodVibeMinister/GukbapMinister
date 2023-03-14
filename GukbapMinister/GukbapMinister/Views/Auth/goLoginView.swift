@@ -31,6 +31,7 @@ struct goLoginView: View {
                     .background(Color("MainColorLight"))
                     .cornerRadius(12)
             }
+            
             .sheet(isPresented: $isPresentedSheet) {
                 LoginView()
                     .environmentObject(userViewModel)

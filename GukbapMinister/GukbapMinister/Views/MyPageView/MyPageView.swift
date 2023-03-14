@@ -50,10 +50,10 @@ struct MyPageView: View {
         NavigationStack {
             // 로그아웃 상태가 아니면(로그인상태이면) mypageView 띄우기
             if userViewModel.isLoggedIn {
-            VStack(alignment: .leading){
-
+                VStack(alignment: .leading){
+                    
                     header
-
+                    
                     List {
                         
                         NavigationLink {
@@ -68,7 +68,7 @@ struct MyPageView: View {
                         NavigationLink {
                             MyReviewView(myReview: myReview)
                                 .environmentObject(storesViewModel)
-
+                            
                         } label: {
                             HStack {
                                 Label("내가 쓴 리뷰", systemImage: "pencil")
@@ -77,15 +77,15 @@ struct MyPageView: View {
                             }
                         }
                         .listRowSeparator(.hidden)
-
+                        
                         
                         NavigationLink {
                             NoticeView()
                         } label: {
-                          Label("공지", systemImage: "exclamationmark.bubble")
+                            Label("공지", systemImage: "exclamationmark.bubble")
                         }
                         .listRowSeparator(.hidden)
-
+                        
                         NavigationLink {
                             PolicyView()
                         } label: {
@@ -122,22 +122,22 @@ struct MyPageView: View {
                         .listRowSeparator(.hidden)
                     }
                     .listStyle(.plain)
+                    
+                }
+                .navigationTitle("마이페이지")
+                .navigationBarTitleDisplayMode(.inline)
+                .onAppear {
+                    reviewViewModel.fetchAllReviews()
+                    mypageViewModel.subscribeUserInfo()
+                }
+                .onDisappear {
+                    mypageViewModel.unsubscribeUserInfo()
+                }
                 
-            }
-            .navigationTitle("마이페이지")
-            .navigationBarTitleDisplayMode(.inline)
-
             } else {
                 goLoginView()
                     .environmentObject(userViewModel)
             }
-        }
-        .onAppear {
-            reviewViewModel.fetchAllReviews()
-            mypageViewModel.subscribeUserInfo()
-        }
-        .onDisappear {
-            mypageViewModel.unsubscribeUserInfo()
         }
         .tint(.mainColor)
     }
@@ -163,7 +163,7 @@ struct MyPageView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 25, height: 25)
-                   
+                    
                     
                     Spacer()
                     
@@ -183,9 +183,9 @@ struct MyPageView: View {
             
         }
         .overlay(
-        RoundedRectangle(cornerRadius: 6)
-            .stroke(Color.gray.opacity(0.3),lineWidth: 1)
-            .frame(width: Screen.maxWidth * 0.9217, height: Screen.maxHeight * 0.1355)
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(Color.gray.opacity(0.3),lineWidth: 1)
+                .frame(width: Screen.maxWidth * 0.9217, height: Screen.maxHeight * 0.1355)
         )
         .padding()
         .padding(.vertical)

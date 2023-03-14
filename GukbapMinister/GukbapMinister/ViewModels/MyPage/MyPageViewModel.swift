@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import Combine
 
 import FirebaseFirestore
 import FirebaseAuth
@@ -15,7 +14,6 @@ final class MyPageViewModel: ObservableObject {
     @Published var user: User
 
     private let database = Firestore.firestore() // FireStore 참조 객체
-    private let currentUser = Auth.auth().currentUser
     
     private var userListenerRegistration: ListenerRegistration?
     
@@ -39,7 +37,7 @@ final class MyPageViewModel: ObservableObject {
     
     //MARK: User 정보구독 (내용변경시 자동으로 업데이트)
     func subscribeUserInfo() {
-        guard let uid = currentUser?.uid else {
+        guard let uid =  Auth.auth().currentUser?.uid else {
             print(#function, "cannot detect user")
             return
         }

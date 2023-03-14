@@ -142,13 +142,13 @@ class UserViewModel: NSObject, ObservableObject {
         // 카카오톡 간편로그인이 실행 가능한지 확인
         func loginProcess(_ oauthToken: OAuthToken?, _ error: Error?) {
             if let error = error {
-                print("There is some error in Kakao Service: \(error)")
+                print("There is some error in Kakao Service: \(error.localizedDescription)")
             } else {
-                doKakaoAuthFirebaseProcess { error in
+                doKakaoAuthFirebaseProcess { [self] error in
                     if let error {
-                        print("Cannot do KakaoAuthFirebaseProcess: \(error)")
+                        print("Cannot do KakaoAuthFirebaseProcess: \(error.localizedDescription)")
                     } else {
-                        self.setUserDefaults(.kakaoLogin)
+                        setUserDefaults(.kakaoLogin)
                     }
                 }
             }
@@ -169,6 +169,7 @@ class UserViewModel: NSObject, ObservableObject {
     
     private func doKakaoAuthFirebaseProcess(completion: @escaping (Error?) -> Void) {
         getKakaoUserInfo { [self] (id, account, error) in
+            
             if let error {
                 completion(error)
                 return
@@ -180,24 +181,31 @@ class UserViewModel: NSObject, ObservableObject {
                         completion(error)
                         return
                     }
+                    
                     if let result {
                         if result.isEmpty {
+                            print("카카오계정으로 새로생성중")
                             Auth.auth().createUser(withEmail: email, password: String(id)) { _, error in
                                 if let error {
                                     completion(error)
-                                    return
+                                } else {
+                                    completion(nil)
+                                    self.insertUserInFirestore(userEmail: email, userName: account.profile?.nickname ?? "임시닉네임")
                                 }
-                                self.insertUserInFirestore(userEmail: email, userName: account.name ?? "")
                             }
                         } else {
+                            print("카카오계정으로 다시로그인중")
                             Auth.auth().signIn(withEmail: email, password: String(id)) { _, error in
                                 if let error {
                                     completion(error)
                                     return
+                                } else {
+                                    completion(nil)
                                 }
                             }
                         }
                     }
+                    
                 }
             }
         }
@@ -233,10 +241,10 @@ class UserViewModel: NSObject, ObservableObject {
     private func setUserDefaults(_ loginState: LoginState) {
         self.loginState = loginState
         
-        if loginState != .logout {
-            UserDefaults.standard.set(true, forKey: "isLoggedIn")
-        } else {
+        if loginState == .logout {
             UserDefaults.standard.set(false, forKey: "isLoggedIn")
+        } else {
+            UserDefaults.standard.set(true, forKey: "isLoggedIn")
         }
         
         UserDefaults.standard.set(loginState.rawValue, forKey: "loginPlatform")
@@ -288,7 +296,6 @@ extension UserViewModel {
         request.nonce = sha256(nonce)
         
         let authorizationController = ASAuthorizationController(authorizationRequests: [request])
-        
         authorizationController.delegate = self
         authorizationController.presentationContextProvider = self
         authorizationController.performRequests()
@@ -360,12 +367,18 @@ extension UserViewModel: ASAuthorizationControllerDelegate {
         let credential = OAuthProvider.credential(withProviderID: "apple.com",
             idToken: idTokenString,
             rawNonce: nonce)
+          
+          
 
-            Auth.auth().signIn(with: credential) { result, error in
-                // 사용자 uid
-                guard let user = result?.user else { return }
-                // 로그인 성공시 유저정보 FireStore에 저장
-                self.insertUserInFirestore(userEmail: user.providerData.first?.email ?? "", userName: user.providerData.first?.displayName ?? "")
+            Auth.auth().signIn(with: credential) { authResult, error in
+                let email: String = authResult?.user.email ?? appleIDCredential.email ?? "\(self.randomNonceString(length: 8))@temporary.com"
+                
+                let familyName: String = appleIDCredential.fullName?.familyName ?? ""
+                let givenName: String = appleIDCredential.fullName?.givenName ?? ""
+                let userName: String = familyName + givenName
+                
+                self.insertUserInFirestore(userEmail: email, userName: userName.isEmpty ? "임시닉네임" : userName)
+                
                 
             }
           
