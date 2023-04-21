@@ -294,7 +294,7 @@
 				045BD7F729B32D20004F4835 /* SplashView3.swift */,
 				045BD7FF29B45CE2004F4835 /* SplashView4.swift */,
 			);
-			name = SplashView;
+			path = SplashView;
 			sourceTree = "<group>";
 		};
 		149CBCED297A270C00F298C7 /* Search */ = {

@@ -38,7 +38,7 @@ struct SplashView2: View {
                                 ForEach(randomGukbaps, id:\.self) { foodimage in
                                     Image(foodimage.imageName)
                                         .resizable()
-                                    .frame(width:UIScreen.main.bounds.width * 0.1 ,height:UIScreen.main.bounds.height * 0.05)
+                                    .frame(width:UIScreen.main.bounds.width * 0.11 ,height:UIScreen.main.bounds.height * 0.05)
                                 }
                             }
                             .padding(.top,-15)

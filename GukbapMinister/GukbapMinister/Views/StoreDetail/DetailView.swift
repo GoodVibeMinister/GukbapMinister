@@ -59,29 +59,7 @@ struct DetailView: View {
         NavigationStack {
             
             ScrollView(showsIndicators: false) {
-//                GeometryReader{ reader -> AnyView in
-//                    DispatchQueue.main.async {
-//                        if refresh.startOffset == 0{
-//                            refresh.startOffset = reader.frame(in: .global).minY
-//                        }
-//                        refresh.offset = reader.frame(in:.global).minY
-//
-//                        if refresh.offset - refresh.startOffset > 80 && !refresh.started {
-//                            refresh.started = true
-//                        }
-//                    }
-//
-//                    return AnyView(Color.black.frame(width: 0,height:0))
-//                }
-//                .frame(width: 0,height: 0)
-//                ZStack(alignment: Alignment(horizontal: .center, vertical: .top)){
-//                    Image(systemName: "arrow.down")
-//                        .font(.system(size:16,weight: .heavy))
-//                        .foregroundColor(.gray)
-//                        .rotationEffect(.init(degrees:refresh.started ? 180 : 0))
-//                        .offset(y:-25)
-//                        .animation(.easeInOut,value: refresh.started)
-//
+
                 VStack{
                     //해당 가게 전체 사진
                     StoreImagesTabView(showDetail: $isshowingStoreImageDetail, store: store)
@@ -101,8 +79,7 @@ struct DetailView: View {
                     //가게 전체 리뷰 보기
                     storeAllReview
                 }
-//                }
-//                .offset(y:-10)
+
             }//ScrollView
             
             .navigationBarBackButtonHidden(true)

@@ -26,8 +26,9 @@ struct GgakdugiRatingShort: View {
                     Text("깍두기 점수")
                     .foregroundColor(scheme == .dark ? .white : .accentColor)
                 }
-                Text("\(String(format: "%.1f", rate))")
+                Text("\(String(format: "%.2f", rate))")
                 .foregroundColor(scheme == .dark ? .white : .accentColor)
+                
             }
             .font(.footnote)
             .bold()
@@ -41,8 +42,8 @@ struct GgakdugiRatingShort: View {
     }
 }
 
-struct GgakdugiRatingShort_Previews: PreviewProvider {
-    static var previews: some View {
-        GgakdugiRatingShort(rate: 4.62, size: 20)
-    }
-}
+//struct GgakdugiRatingShort_Previews: PreviewProvider {
+//    static var previews: some View {
+//        GgakdugiRatingShort(rate: 4.62, size: 20)
+//    }
+//}

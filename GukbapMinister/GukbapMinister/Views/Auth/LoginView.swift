@@ -50,7 +50,9 @@ struct LoginView: View {
                     .padding([.leading,.trailing],5)
                     
                     Button {
-                        userViewModel.googleLogin()
+                        Task {
+                            await userViewModel.googleLogin()
+                        }
                     } label: {
                         Text("Google로 로그인")
                             .fontWeight(.semibold)
