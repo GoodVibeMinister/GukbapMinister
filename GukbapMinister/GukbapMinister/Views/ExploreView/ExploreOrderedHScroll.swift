@@ -48,7 +48,7 @@ struct ExploreOrderedHScroll: View {
             
             
             Text(mode == .hits ?
-                 "국밥부 직원들이 가장 많이 찾아본 국밥집들을 소개합니다" : "국밥부 직원들이 높게 평가한 국밥집을 모아봤어요"
+                 "사람들이 가장 많이 찾아본 국밥집들을 소개합니다" : "사람들이 높게 평가한 국밥집을 모아봤어요"
             )
                 .foregroundColor(.gray)
                 .font(.caption)
